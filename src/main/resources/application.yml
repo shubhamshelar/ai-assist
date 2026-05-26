@@ -1,0 +1,9 @@
+spring:
+  ai:
+    openai:
+      api-key: ${GROQ_API_KEY}
+      base-url: https://api.groq.com/openai
+      chat:
+        model: llama-3.1-8b-instant
+        options:
+          model: llama-3.1-8b-instant
