@@ -409,6 +409,81 @@
                 padding: 16px;
             }
         }
+
+        /* PDF Upload Styles */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .upload-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .upload-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            background: rgba(99, 102, 241, 0.15);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .upload-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.2);
+        }
+
+        .upload-btn.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .file-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            max-width: 220px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .file-badge span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-clear-btn {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .file-clear-btn:hover {
+            color: #ef4444;
+        }
     </style>
 </head>
 <body>
@@ -423,9 +498,28 @@
                     <i class="fa-solid fa-brain"></i>
                     <h1>AI Assistant</h1>
                 </div>
-                <div class="status-badge">
-                    <span class="status-dot"></span>
-                    <span>Llama 3.1 8B</span>
+                <div class="header-actions">
+                    <!-- PDF Upload -->
+                    <div class="upload-container">
+                        <label for="pdfUpload" class="upload-btn" id="uploadLabel">
+                            <i class="fa-solid fa-file-pdf"></i>
+                            <span>Upload PDF</span>
+                        </label>
+                        <input type="file" id="pdfUpload" accept="application/pdf" style="display: none;">
+                        
+                        <div class="file-badge" id="fileBadge" style="display: none;">
+                            <i class="fa-solid fa-file-lines"></i>
+                            <span id="fileName">document.pdf</span>
+                            <button class="file-clear-btn" id="clearFileBtn" title="Clear PDF context">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="status-badge">
+                        <span class="status-dot"></span>
+                        <span>Llama 3.1 8B</span>
+                    </div>
                 </div>
             </div>
 
@@ -463,6 +557,69 @@
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
         const emptyState = document.getElementById('emptyState');
+        
+        // PDF Upload elements
+        const pdfUpload = document.getElementById('pdfUpload');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const fileBadge = document.getElementById('fileBadge');
+        const fileName = document.getElementById('fileName');
+        const clearFileBtn = document.getElementById('clearFileBtn');
+
+        let currentDocumentId = null;
+
+        // PDF Upload Listener
+        pdfUpload.addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf') {
+                alert('Please upload a PDF file.');
+                this.value = '';
+                return;
+            }
+
+            const originalLabelText = uploadLabel.querySelector('span').textContent;
+            uploadLabel.querySelector('span').textContent = 'Uploading...';
+            uploadLabel.classList.add('disabled');
+            pdfUpload.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Upload failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                currentDocumentId = data.documentId;
+                
+                fileName.textContent = data.filename;
+                fileBadge.style.display = 'flex';
+                uploadLabel.style.display = 'none';
+
+            } catch (error) {
+                console.error(error);
+                alert('Failed to upload PDF. Please check server logs.');
+            } finally {
+                uploadLabel.querySelector('span').textContent = originalLabelText;
+                uploadLabel.classList.remove('disabled');
+                pdfUpload.disabled = false;
+                this.value = '';
+            }
+        });
+
+        // Clear PDF listener
+        clearFileBtn.addEventListener('click', function() {
+            currentDocumentId = null;
+            fileBadge.style.display = 'none';
+            uploadLabel.style.display = 'flex';
+        });
 
         // Configure Marked options
         marked.setOptions({
@@ -586,12 +743,17 @@
             addTypingIndicator();
 
             try {
+                const payload = { question: text };
+                if (currentDocumentId) {
+                    payload.documentId = currentDocumentId;
+                }
+
                 const response = await fetch('/ask', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ question: text })
+                    body: JSON.stringify(payload)
                 });
 
                 if (!response.ok) {

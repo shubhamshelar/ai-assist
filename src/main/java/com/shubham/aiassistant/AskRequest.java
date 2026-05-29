@@ -1,3 +1,3 @@
 package com.shubham.aiassistant;
 
-public record AskRequest(String question) {}
+public record AskRequest(String question, String documentId) {}
