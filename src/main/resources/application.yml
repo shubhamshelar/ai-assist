@@ -20,17 +20,10 @@ spring:
           model: llama-3.1-8b-instant
       embedding:
         enabled: false
-    google:
-      genai:
-        api-key: ${GEMINI_API_KEY}
-        project-id: ${GOOGLE_CLOUD_PROJECT:dummy-project}
-        embedding:
-          api-key: ${GEMINI_API_KEY}
-          project-id: ${GOOGLE_CLOUD_PROJECT:dummy-project}
-          text:
-            options:
-              model: gemini-embedding-001
-              dimensions: 768
+    ollama:
+      base-url: http://localhost:11434
+      embedding:
+        model: nomic-embed-text
     vectorstore:
       pgvector:
         initialize-schema: true

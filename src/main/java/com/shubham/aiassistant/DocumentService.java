@@ -98,24 +98,9 @@ public class DocumentService {
                 chunkDocuments.add(chunkDoc);
             }
 
-            log.info("Adding {} chunks to PgVectorStore in rate-limited batches for document ID: {}", chunkDocuments.size(), documentId);
-            
-            int batchSize = 20;
-            for (int i = 0; i < chunkDocuments.size(); i += batchSize) {
-                List<Document> batch = chunkDocuments.subList(i, Math.min(i + batchSize, chunkDocuments.size()));
-                log.info("Adding batch of {} chunks to PgVectorStore (progress: {}/{})", batch.size(), i + batch.size(), chunkDocuments.size());
-                vectorStore.add(batch);
-                
-                if (i + batchSize < chunkDocuments.size()) {
-                    try {
-                        log.info("Sleeping for 3 seconds to avoid rate limits on the next batch...");
-                        Thread.sleep(3000);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Embedding generation interrupted", e);
-                    }
-                }
-            }
+            log.info("Adding {} chunks to PgVectorStore for document ID: {}", chunkDocuments.size(), documentId);
+            // Store in VectorStore (PgVectorStore)
+            vectorStore.add(chunkDocuments);
             log.debug("Successfully added all chunks to PgVectorStore");
 
             // Save to Database
