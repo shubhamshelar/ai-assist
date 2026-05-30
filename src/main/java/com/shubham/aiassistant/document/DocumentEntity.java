@@ -1,4 +1,4 @@
-package com.shubham.aiassistant;
+package com.shubham.aiassistant.document;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,8 +23,8 @@ public class DocumentEntity {
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
 
-    public DocumentEntity() {
-    }
+    /** Required by JPA. */
+    public DocumentEntity() {}
 
     public DocumentEntity(UUID id, String filename, String sha256Hash, LocalDateTime uploadedAt) {
         this.id = id;
@@ -33,35 +33,13 @@ public class DocumentEntity {
         this.uploadedAt = uploadedAt;
     }
 
-    public UUID getId() {
-        return id;
-    }
+    public UUID getId()                       { return id; }
+    public String getFilename()               { return filename; }
+    public String getSha256Hash()             { return sha256Hash; }
+    public LocalDateTime getUploadedAt()      { return uploadedAt; }
 
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public String getFilename() {
-        return filename;
-    }
-
-    public void setFilename(String filename) {
-        this.filename = filename;
-    }
-
-    public String getSha256Hash() {
-        return sha256Hash;
-    }
-
-    public void setSha256Hash(String sha256Hash) {
-        this.sha256Hash = sha256Hash;
-    }
-
-    public LocalDateTime getUploadedAt() {
-        return uploadedAt;
-    }
-
-    public void setUploadedAt(LocalDateTime uploadedAt) {
-        this.uploadedAt = uploadedAt;
-    }
+    public void setId(UUID id)                { this.id = id; }
+    public void setFilename(String filename)  { this.filename = filename; }
+    public void setSha256Hash(String h)       { this.sha256Hash = h; }
+    public void setUploadedAt(LocalDateTime t){ this.uploadedAt = t; }
 }
