@@ -3,6 +3,13 @@ spring:
     multipart:
       max-file-size: 100MB
       max-request-size: 100MB
+  datasource:
+    url: jdbc:postgresql://localhost:5432/aiassist
+    username: aiassist
+    password: aiassist
+  jpa:
+    hibernate:
+      ddl-auto: update
   ai:
     openai:
       api-key: ${GROQ_API_KEY}
@@ -11,3 +18,28 @@ spring:
         model: llama-3.1-8b-instant
         options:
           model: llama-3.1-8b-instant
+      embedding:
+        enabled: false
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        project-id: ${GOOGLE_CLOUD_PROJECT:dummy-project}
+        embedding:
+          api-key: ${GEMINI_API_KEY}
+          project-id: ${GOOGLE_CLOUD_PROJECT:dummy-project}
+          text:
+            options:
+              model: gemini-embedding-001
+              dimensions: 768
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        index-type: hnsw
+        distance-type: cosine_distance
+        dimensions: 768
+
+logging:
+  level:
+    com.shubham.aiassistant: DEBUG
+    org.springframework.ai: INFO
+    org.hibernate.SQL: DEBUG
