@@ -567,6 +567,10 @@
 
         let currentDocumentId = null;
 
+        // Generate a session ID for this page load (conversation memory)
+        const sessionId = crypto.randomUUID();
+        console.log('[ai-assist] Session ID:', sessionId);
+
         // PDF Upload Listener
         pdfUpload.addEventListener('change', async function() {
             const file = this.files[0];
@@ -743,7 +747,7 @@
             addTypingIndicator();
 
             try {
-                const payload = { question: text };
+                const payload = { question: text, sessionId: sessionId };
                 if (currentDocumentId) {
                     payload.documentId = currentDocumentId;
                 }
