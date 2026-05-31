@@ -14,6 +14,11 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -69,14 +74,15 @@ public class AiController {
                 hasSession ? conversationService.getHistory(sessionId) : List.of();
 
         // ── 2. Build prompt ───────────────────────────────────────────────────
-        String prompt = buildPrompt(question, documentId, sourceFilter, history);
+        Prompt prompt = buildPrompt(question, documentId, sourceFilter, history);
 
         // ── 3. Store user turn (before model call — correct ordering) ─────────
         if (hasSession) conversationService.addMessage(sessionId, "user", question);
 
         // ── 4. Call the LLM ───────────────────────────────────────────────────
         log.debug("Calling ChatModel:\n---\n{}\n---", prompt);
-        String answer = chatModel.call(prompt);
+        ChatResponse response = chatModel.call(prompt);
+        String answer = response.getResult().getOutput().getText();
         log.info("ChatModel responded ({} chars)", answer.length());
 
         // ── 5. Store assistant turn ───────────────────────────────────────────
@@ -87,51 +93,62 @@ public class AiController {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private static final String SYSTEM_PROMPT_TEMPLATE = """
-            You are a personal knowledge assistant. You answer questions strictly based on the context provided below.
-
-            Rules:
-            1. ONLY use information from the provided context chunks. Never use your general training knowledge.
-            2. For every answer, cite the exact source file path like this: [Source: /path/to/file.md]
-            3. If the answer is not found in the context, say exactly: "I could not find this in your knowledge base."
-            4. Never mix information from different source files without clearly labeling which file each part comes from.
-            5. When asked for exact lines, quote the relevant chunk text verbatim and include the file path.
-            6. Do not hallucinate or infer beyond what the context says.
-
-            Context chunks retrieved:
-            {chunks}
-
-            Each chunk above includes a [File: path] header. Always reference it when answering.
+    private static final String SYSTEM_PROMPT = """
+            You are a personal knowledge assistant for Shubham. 
+            Answer the user's question in clear, coherent language using ONLY the context provided.
+            Synthesize information across chunks into a complete answer.
+            Cite sources at the end like: [Source: filename.md]
+            If context doesn't contain the answer, say: "Not found in knowledge base."
+            Never answer from general knowledge.
             """;
 
-    private String buildPrompt(String question, String documentId, String sourceFilter,
+    private Prompt buildPrompt(String question, String documentId, String sourceFilter,
                                List<MessageEntry> history) {
         // ── Retrieve and format context chunks ────────────────────────────────
         String chunks = searchService.findRelevantContext(question, documentId, sourceFilter);
 
-        // ── Build the system prompt ───────────────────────────────────────────
-        // If no chunks were found, inject a placeholder that triggers rule #3.
-        String filledSystemPrompt = SYSTEM_PROMPT_TEMPLATE.replace(
-            "{chunks}",
-            chunks.isBlank() ? "(No relevant context found.)" : chunks
-        );
-
         log.info("Context chunks: {} chars, {} chunk blocks",
                  chunks.length(), chunks.isBlank() ? 0 : countOccurrences(chunks, "[File:"));
 
-        // ── Prepend conversation history ──────────────────────────────────────
-        String historySection = buildHistoryPrefix(history);
+        // ── 1. Create System Message ──────────────────────────────────────────
+        SystemMessage systemMsg = new SystemMessage(SYSTEM_PROMPT);
 
-        return filledSystemPrompt + historySection + "Question: " + question;
-    }
+        // ── 2. Create Messages list with System, History, and Current User ───
+        List<org.springframework.ai.chat.messages.Message> messages = new java.util.ArrayList<>();
+        messages.add(systemMsg);
 
-    private static String buildHistoryPrefix(List<MessageEntry> history) {
-        if (history.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder("\nConversation so far:\n");
         for (MessageEntry entry : history) {
-            sb.append(entry.role()).append(": ").append(entry.content()).append("\n");
+            if ("user".equalsIgnoreCase(entry.role())) {
+                messages.add(new UserMessage(entry.content()));
+            } else if ("assistant".equalsIgnoreCase(entry.role())) {
+                messages.add(new AssistantMessage(entry.content()));
+            }
         }
-        return sb.append("\n").toString();
+
+        // ── 3. Create Current User Message with Context ───────────────────────
+        String userContent;
+        if (chunks == null || chunks.isBlank()) {
+            userContent = """
+                    Context from knowledge base:
+                    (No relevant context found.)
+                    
+                    Question: %s
+                    
+                    Answer in clear paragraphs. Cite sources used.""".formatted(question);
+        } else {
+            userContent = """
+                    Context from knowledge base:
+                    
+                    %s
+                    
+                    Question: %s
+                    
+                    Answer in clear paragraphs. Cite sources used.""".formatted(chunks, question);
+        }
+
+        messages.add(new UserMessage(userContent));
+
+        return new Prompt(messages);
     }
 
     private static int countOccurrences(String text, String token) {

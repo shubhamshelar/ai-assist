@@ -52,7 +52,16 @@ class AiControllerIntegrationTest {
     @BeforeEach
     void setUp() {
         conversationService.clearAll();
-        Mockito.when(chatModel.call(Mockito.anyString())).thenReturn("Mock answer");
+
+        org.springframework.ai.chat.model.ChatResponse mockResponse = Mockito.mock(org.springframework.ai.chat.model.ChatResponse.class);
+        org.springframework.ai.chat.model.Generation mockGeneration = Mockito.mock(org.springframework.ai.chat.model.Generation.class);
+        org.springframework.ai.chat.messages.AssistantMessage mockAssistantMessage = Mockito.mock(org.springframework.ai.chat.messages.AssistantMessage.class);
+
+        Mockito.when(chatModel.call(Mockito.any(org.springframework.ai.chat.prompt.Prompt.class))).thenReturn(mockResponse);
+        Mockito.when(mockResponse.getResult()).thenReturn(mockGeneration);
+        Mockito.when(mockGeneration.getOutput()).thenReturn(mockAssistantMessage);
+        Mockito.when(mockAssistantMessage.getText()).thenReturn("Mock answer");
+
         Mockito.when(searchService.findRelevantContext(
                 Mockito.anyString(), Mockito.any(), Mockito.anyString()))
                .thenReturn("");
@@ -65,12 +74,10 @@ class AiControllerIntegrationTest {
 
         String prompt = capturePrompt(1);
         // System prompt is always injected
-        assertThat(prompt).contains("personal knowledge assistant");
-        assertThat(prompt).contains("ONLY use information from the provided context chunks");
+        assertThat(prompt).contains("personal knowledge assistant for Shubham");
+        assertThat(prompt).contains("using ONLY the context provided");
         // The question appears at the end
         assertThat(prompt).contains("Question: What is 2+2?");
-        // No history prefix on first call
-        assertThat(prompt).doesNotContain("Conversation so far:");
     }
 
     // ── 2. Second turn: prompt contains previous exchange ────────────────────
@@ -135,7 +142,7 @@ class AiControllerIntegrationTest {
 
         String prompt = capturePrompt(1);
         // System prompt always present
-        assertThat(prompt).contains("personal knowledge assistant");
+        assertThat(prompt).contains("personal knowledge assistant for Shubham");
         assertThat(prompt).contains("Question: Hello world");
         // No session saved
         assertThat(conversationService.sessionCount()).isZero();
@@ -171,8 +178,13 @@ class AiControllerIntegrationTest {
 
     /** Captures all prompts sent to chatModel and returns the one at callIndex (1-based). */
     private String capturePrompt(int callIndex) {
-        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<org.springframework.ai.chat.prompt.Prompt> captor = ArgumentCaptor.forClass(org.springframework.ai.chat.prompt.Prompt.class);
         Mockito.verify(chatModel, Mockito.times(callIndex)).call(captor.capture());
-        return captor.getAllValues().get(callIndex - 1);
+        org.springframework.ai.chat.prompt.Prompt prompt = captor.getAllValues().get(callIndex - 1);
+        StringBuilder sb = new StringBuilder();
+        for (org.springframework.ai.chat.messages.Message msg : prompt.getInstructions()) {
+            sb.append(msg.getMessageType().getValue()).append(": ").append(msg.getText()).append("\n");
+        }
+        return sb.toString();
     }
 }

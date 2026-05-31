@@ -20,8 +20,8 @@ import java.util.regex.Pattern;
  */
 public class MarkdownChunker {
 
-    public static final int CHUNK_SIZE    = 800;
-    public static final int CHUNK_OVERLAP = 100;
+    public static final int CHUNK_SIZE    = 2000;
+    public static final int CHUNK_OVERLAP = 250;
 
     /** ATX heading pattern: line starting with one or more # followed by a space. */
     private static final Pattern HEADING_SPLIT = Pattern.compile("(?m)(?=^#+\\s)", Pattern.MULTILINE);
