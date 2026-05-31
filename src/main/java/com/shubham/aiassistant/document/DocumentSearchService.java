@@ -1,8 +1,6 @@
 package com.shubham.aiassistant.document;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,14 +90,53 @@ public class DocumentSearchService {
                 }
             }
 
-            return hits.stream()
-                       .map(Document::getText)
-                       .collect(Collectors.joining("\n\n"));
+            return formatChunks(hits);
         } catch (Exception e) {
             // Some filter expressions may fail when the metadata key doesn't exist yet
             // (e.g. before any vault files are indexed). Degrade gracefully.
             log.warn("Search failed for filter='{}': {} — returning empty", filterExpression, e.getMessage());
             return "";
         }
+    }
+
+    /**
+     * Formats retrieved chunks so the LLM can see and cite their source files.
+     *
+     * <p>Each chunk is rendered as:
+     * <pre>
+     * [File: /path/to/file.md]
+     * {chunk text}
+     * ---
+     * </pre>
+     *
+     * Source resolution priority:
+     * <ol>
+     *   <li>{@code filePath} metadata (vault .md files)
+     *   <li>{@code filename} metadata (uploaded PDF files)
+     *   <li>Fallback label "unknown source"
+     * </ol>
+     */
+    private static String formatChunks(List<Document> docs) {
+        if (docs.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (Document doc : docs) {
+            String source = resolveSource(doc);
+            sb.append("[File: ").append(source).append("]\n");
+            sb.append(doc.getText()).append("\n");
+            sb.append("---\n");
+        }
+        return sb.toString().stripTrailing();
+    }
+
+    private static String resolveSource(Document doc) {
+        Object filePath = doc.getMetadata().get("filePath");
+        if (filePath != null && !filePath.toString().isBlank()) {
+            return filePath.toString();
+        }
+        Object filename = doc.getMetadata().get("filename");
+        if (filename != null && !filename.toString().isBlank()) {
+            return filename.toString();
+        }
+        return "unknown source";
     }
 }

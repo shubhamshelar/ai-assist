@@ -87,28 +87,60 @@ public class AiController {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    private static final String SYSTEM_PROMPT_TEMPLATE = """
+            You are a personal knowledge assistant. You answer questions strictly based on the context provided below.
+
+            Rules:
+            1. ONLY use information from the provided context chunks. Never use your general training knowledge.
+            2. For every answer, cite the exact source file path like this: [Source: /path/to/file.md]
+            3. If the answer is not found in the context, say exactly: "I could not find this in your knowledge base."
+            4. Never mix information from different source files without clearly labeling which file each part comes from.
+            5. When asked for exact lines, quote the relevant chunk text verbatim and include the file path.
+            6. Do not hallucinate or infer beyond what the context says.
+
+            Context chunks retrieved:
+            {chunks}
+
+            Each chunk above includes a [File: path] header. Always reference it when answering.
+            """;
+
     private String buildPrompt(String question, String documentId, String sourceFilter,
                                List<MessageEntry> history) {
-        String historyPrefix = buildHistoryPrefix(history);
+        // ── Retrieve and format context chunks ────────────────────────────────
+        String chunks = searchService.findRelevantContext(question, documentId, sourceFilter);
 
-        String context = searchService.findRelevantContext(question, documentId, sourceFilter);
-        if (context != null && !context.isBlank()) {
-            log.info("Injecting context ({} chars) into prompt", context.length());
-            return historyPrefix
-                 + "Use the following context to answer the user's question. "
-                 + "If the answer is not in the context, use your general knowledge but say so.\n\n"
-                 + "Context:\n" + context + "\n\nQuestion: " + question;
-        }
+        // ── Build the system prompt ───────────────────────────────────────────
+        // If no chunks were found, inject a placeholder that triggers rule #3.
+        String filledSystemPrompt = SYSTEM_PROMPT_TEMPLATE.replace(
+            "{chunks}",
+            chunks.isBlank() ? "(No relevant context found.)" : chunks
+        );
 
-        return historyPrefix + question;
+        log.info("Context chunks: {} chars, {} chunk blocks",
+                 chunks.length(), chunks.isBlank() ? 0 : countOccurrences(chunks, "[File:"));
+
+        // ── Prepend conversation history ──────────────────────────────────────
+        String historySection = buildHistoryPrefix(history);
+
+        return filledSystemPrompt + historySection + "Question: " + question;
     }
 
     private static String buildHistoryPrefix(List<MessageEntry> history) {
         if (history.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder("Conversation so far:\n");
+        StringBuilder sb = new StringBuilder("\nConversation so far:\n");
         for (MessageEntry entry : history) {
             sb.append(entry.role()).append(": ").append(entry.content()).append("\n");
         }
         return sb.append("\n").toString();
+    }
+
+    private static int countOccurrences(String text, String token) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = text.indexOf(token, idx)) != -1) {
+            count++;
+            idx += token.length();
+        }
+        return count;
     }
 }

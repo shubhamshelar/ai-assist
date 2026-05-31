@@ -58,12 +58,19 @@ class AiControllerIntegrationTest {
                .thenReturn("");
     }
 
-    // ── 1. First turn: prompt is just the raw question ───────────────────────
+    // ── 1. First turn: prompt contains system prompt + question ────────────────
     @Test
-    void firstRequest_promptContainsOnlyQuestion() throws Exception {
+    void firstRequest_promptContainsSystemPromptAndQuestion() throws Exception {
         ask("session-1", "What is 2+2?", null);
 
-        assertThat(capturePrompt(1).trim()).isEqualTo("What is 2+2?");
+        String prompt = capturePrompt(1);
+        // System prompt is always injected
+        assertThat(prompt).contains("personal knowledge assistant");
+        assertThat(prompt).contains("ONLY use information from the provided context chunks");
+        // The question appears at the end
+        assertThat(prompt).contains("Question: What is 2+2?");
+        // No history prefix on first call
+        assertThat(prompt).doesNotContain("Conversation so far:");
     }
 
     // ── 2. Second turn: prompt contains previous exchange ────────────────────
@@ -126,7 +133,11 @@ class AiControllerIntegrationTest {
                 .content(mapper.writeValueAsString(body)))
                .andExpect(status().isOk());
 
-        assertThat(capturePrompt(1).trim()).isEqualTo("Hello world");
+        String prompt = capturePrompt(1);
+        // System prompt always present
+        assertThat(prompt).contains("personal knowledge assistant");
+        assertThat(prompt).contains("Question: Hello world");
+        // No session saved
         assertThat(conversationService.sessionCount()).isZero();
     }
 
