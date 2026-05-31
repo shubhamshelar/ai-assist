@@ -54,12 +54,13 @@ public class AiController {
 
     @PostMapping("/ask")
     public AskResponse ask(@RequestBody AskRequest request) {
-        String sessionId  = request.sessionId();
-        String question   = request.question();
-        String documentId = request.documentId();
+        String sessionId     = request.sessionId();
+        String question      = request.question();
+        String documentId    = request.documentId();
+        String sourceFilter  = request.sourceFilter() != null ? request.sourceFilter() : "all";
 
-        log.info("POST /ask — question='{}' documentId='{}' sessionId='{}'",
-                 question, documentId, sessionId);
+        log.info("POST /ask — question='{}' documentId='{}' sessionId='{}' sourceFilter='{}'",
+                 question, documentId, sessionId, sourceFilter);
 
         boolean hasSession = sessionId != null && !sessionId.isBlank();
 
@@ -68,7 +69,7 @@ public class AiController {
                 hasSession ? conversationService.getHistory(sessionId) : List.of();
 
         // ── 2. Build prompt ───────────────────────────────────────────────────
-        String prompt = buildPrompt(question, documentId, history);
+        String prompt = buildPrompt(question, documentId, sourceFilter, history);
 
         // ── 3. Store user turn (before model call — correct ordering) ─────────
         if (hasSession) conversationService.addMessage(sessionId, "user", question);
@@ -86,19 +87,17 @@ public class AiController {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private String buildPrompt(String question, String documentId, List<MessageEntry> history) {
+    private String buildPrompt(String question, String documentId, String sourceFilter,
+                               List<MessageEntry> history) {
         String historyPrefix = buildHistoryPrefix(history);
 
-        if (documentId != null && !documentId.isBlank()) {
-            String context = searchService.findRelevantContext(documentId, question);
-            if (context != null && !context.isBlank()) {
-                log.info("Injecting document context ({} chars) into prompt", context.length());
-                return historyPrefix
-                     + "Use the following document context to answer the user's question. "
-                     + "If the answer is not in the context, use your general knowledge but say so.\n\n"
-                     + "Document context:\n" + context + "\n\nQuestion: " + question;
-            }
-            log.warn("No context found for documentId='{}'. Falling back to raw question.", documentId);
+        String context = searchService.findRelevantContext(question, documentId, sourceFilter);
+        if (context != null && !context.isBlank()) {
+            log.info("Injecting context ({} chars) into prompt", context.length());
+            return historyPrefix
+                 + "Use the following context to answer the user's question. "
+                 + "If the answer is not in the context, use your general knowledge but say so.\n\n"
+                 + "Context:\n" + context + "\n\nQuestion: " + question;
         }
 
         return historyPrefix + question;

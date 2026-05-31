@@ -53,7 +53,8 @@ class AiControllerIntegrationTest {
     void setUp() {
         conversationService.clearAll();
         Mockito.when(chatModel.call(Mockito.anyString())).thenReturn("Mock answer");
-        Mockito.when(searchService.findRelevantContext(Mockito.anyString(), Mockito.anyString()))
+        Mockito.when(searchService.findRelevantContext(
+                Mockito.anyString(), Mockito.any(), Mockito.anyString()))
                .thenReturn("");
     }
 
@@ -102,7 +103,8 @@ class AiControllerIntegrationTest {
     void documentContext_stillIncludesHistory() throws Exception {
         String session = "session-doc";
         String docId   = "doc-123";
-        Mockito.when(searchService.findRelevantContext(Mockito.eq(docId), Mockito.anyString()))
+        Mockito.when(searchService.findRelevantContext(
+                Mockito.anyString(), Mockito.eq(docId), Mockito.anyString()))
                .thenReturn("The tax rate is 30%.");
 
         ask(session, "What is my income?", null);     // seeds history

@@ -5,6 +5,9 @@ import org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConf
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import org.springframework.scheduling.annotation.EnableAsync;
+
+@EnableAsync
 @SpringBootApplication(exclude = {
 		OpenAiEmbeddingAutoConfiguration.class,
 		OllamaChatAutoConfiguration.class
